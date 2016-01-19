@@ -51,7 +51,7 @@ enum Size {
         case .Middle:
             return "@2x"
         case .Small:
-            return ""
+            return "@1x"
         }
     }
     static let all: [Size] = [.Large, .Middle, .Small]
