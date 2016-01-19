@@ -5,33 +5,29 @@ import CoreGraphics
 import Cocoa
 
 class Storage {
-    private let DefaultTempDirName = "thumbnail-kit"
-    var url: NSURL?
-    init() {
-        self.url = createTemporaryDirectory()
-    }
-    
-    func createTemporaryDirectory() -> NSURL? {
-        let url: NSURL = NSURL(fileURLWithPath: NSTemporaryDirectory())
-        let pathURL : NSURL = url.URLByAppendingPathComponent(DefaultTempDirName)
+    private let thumbnailsDirName = "thumbnails"
+    func writeToFile(data: NSData, filePath: String) {
+        let localFileURL : NSURL = NSURL(string: filePath)!
+        let localFilePathString: NSString = localFileURL.absoluteString as NSString
+        let localFilePath: String = localFilePathString.stringByDeletingLastPathComponent
+        let fileName: String = localFilePathString.lastPathComponent
+        
+        let fileURL: NSURL = NSURL(fileURLWithPath: localFilePath + "/" + thumbnailsDirName + "/")
         let fileManager = NSFileManager.defaultManager()
-        do {
-            try fileManager.createDirectoryAtURL(pathURL, withIntermediateDirectories: true, attributes: nil)
-            return pathURL
-        } catch {
-            return nil
+        if !fileManager.fileExistsAtPath(fileURL.path!) {
+            do {
+                try fileManager.createDirectoryAtPath(fileURL.path!, withIntermediateDirectories: true, attributes: nil)
+            } catch {
+                exit(EXIT_FAILURE)
+            }
         }
-    }
-    
-    func writeToFile(data: NSData, filename: String) {
-        let fileURL : NSURL = NSURL(string: filename, relativeToURL: self.url)!
-        if !data.writeToFile(fileURL.path!, atomically: false) {
+        let destinationFileURL: NSURL = NSURL(string: fileName, relativeToURL: fileURL)!
+        if !data.writeToFile(destinationFileURL.path!, atomically: false) {
             print("Write to file failed")
             exit(EXIT_FAILURE)
         }
-        print("wrote to \(fileURL.path!)")
+        print("Wrote to \(destinationFileURL.path!)")
     }
-    
 }
 
 enum Size {
@@ -63,13 +59,13 @@ enum Size {
 
 class Converter {
     let storage: Storage = Storage()
-    func createThumbnails(fileName: String, image: NSImage, url: NSURL) {
+    func createThumbnails(fileName: String, image: NSImage) {
         for size in Size.all {
             let destinationFileName = fileName.fileNameWithoutExtension + size.appendFileName + "." + fileName.fileExtension
-            self.resize(with: image, destinationURL: url, resizeRate: size.scale, fileName: destinationFileName)
+            self.resize(with: image, resizeRate: size.scale, fileName: destinationFileName)
         }
     }
-    private func resize(with sourceImage: NSImage, destinationURL: NSURL, resizeRate: Double, fileName: String) {
+    private func resize(with sourceImage: NSImage, resizeRate: Double, fileName: String) {
         let originalSize: NSSize = sourceImage.size
         let thumbnailImageSize: NSSize = NSSize(width: CGFloat(Double(originalSize.width) * resizeRate), height: CGFloat(Double(originalSize.height) * resizeRate))
         let thumbnailImage: NSImage = NSImage(size: thumbnailImageSize)
@@ -78,7 +74,7 @@ class Converter {
         thumbnailImage.unlockFocus()
         thumbnailImage.size = thumbnailImageSize
         let data: NSData = thumbnailImage.TIFFRepresentation!
-        self.storage.writeToFile(data, filename: fileName)
+        self.storage.writeToFile(data, filePath: fileName)
     }
 }
 
@@ -97,7 +93,7 @@ class Command {
             exit(EXIT_FAILURE)
         }
         let converter: Converter = Converter()
-        converter.createThumbnails(filename, image: imageData, url: converter.storage.url!)
+        converter.createThumbnails(filename, image: imageData)
     }
 }
 
@@ -111,7 +107,7 @@ extension String {
 }
 
 if Process.arguments.count < 2 {
-    print("filename is incomplete.")
+    print("filepath is incomplete.")
     exit(EXIT_FAILURE)
 } else {
     let filename: String = Process.arguments[1]
